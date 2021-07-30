@@ -53,29 +53,53 @@ var tokenCmd = &cobra.Command{
 		}
 
 		var tok token.Token
+		var gen token.Generator
 		var out string
 		var err error
-		gen, err := token.NewGenerator(forwardSessionName, cache)
+		tokenCache, err := token.NewTokenCache()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "could not get token: %v\n", err)
+			fmt.Fprintf(os.Stderr, "failed to read token cache: %v\n", err)
 			os.Exit(1)
 		}
-
-		tok, err = gen.GetWithOptions(&token.GetTokenOptions{
-			ClusterID:            clusterID,
-			AssumeRoleARN:        roleARN,
-			AssumeRoleExternalID: externalID,
-			SessionName:          sessionName,
-			Region:               region,
+		tok, ok := tokenCache.Get(token.TokenCacheKey{
+			ClusterID: clusterID,
+			Profile:   os.Getenv("AWS_PROFILE"),
+			RoleARN:   roleARN,
 		})
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "could not get token: %v\n", err)
-			os.Exit(1)
+		if !ok || token.TokenIsExpired(tok) {
+
+			gen, err = token.NewGenerator(forwardSessionName, cache)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "could not get token: %v\n", err)
+				os.Exit(1)
+			}
+
+			tok, err = gen.GetWithOptions(&token.GetTokenOptions{
+				ClusterID:            clusterID,
+				AssumeRoleARN:        roleARN,
+				AssumeRoleExternalID: externalID,
+				SessionName:          sessionName,
+				Region:               region,
+			})
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "could not get token: %v\n", err)
+				os.Exit(1)
+			}
+			tokenCache.Put(token.TokenCacheKey{
+				ClusterID: clusterID,
+				Profile:   os.Getenv("AWS_PROFILE"),
+				RoleARN:   roleARN,
+			}, tok)
+			err = token.WriteTokenCache(tokenCache)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "could write token cache: %v\n", err)
+				os.Exit(1)
+			}
 		}
 		if tokenOnly {
 			out = tok.Token
 		} else {
-			out = gen.FormatJSON(tok)
+			out = token.FormatJSON(tok)
 		}
 		fmt.Println(out)
 	},

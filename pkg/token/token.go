@@ -171,8 +171,6 @@ type Generator interface {
 	GetWithOptions(options *GetTokenOptions) (Token, error)
 	// GetWithSTS returns a token valid for clusterID using the given STS client.
 	GetWithSTS(clusterID string, stsAPI stsiface.STSAPI) (Token, error)
-	// FormatJSON returns the client auth formatted json for the ExecCredential auth
-	FormatJSON(Token) string
 }
 
 type generator struct {
@@ -336,7 +334,7 @@ func (g generator) GetWithSTS(clusterID string, stsAPI stsiface.STSAPI) (Token, 
 }
 
 // FormatJSON formats the json to support ExecCredential authentication
-func (g generator) FormatJSON(token Token) string {
+func FormatJSON(token Token) string {
 	expirationTimestamp := metav1.NewTime(token.Expiration)
 	execInput := &clientauthv1alpha1.ExecCredential{
 		TypeMeta: metav1.TypeMeta{
